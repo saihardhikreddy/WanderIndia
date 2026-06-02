@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ destination }} | Wanderindia</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Playfair+Display:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        :root { --glass: rgba(10, 15, 20, 0.8); }
+        body { font-family: 'Outfit', sans-serif; color: white; background-color: #000; overflow-x: hidden; }
+        
+        .hero-background {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100vh; z-index: -1;
+            background-image: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.9)), url('https://images.unsplash.com/photo-1472214103451-9374bd1c798e?q=80&w=2000');
+            background-size: cover; background-position: center;
+        }
+        .glass-panel { background: var(--glass); backdrop-filter: blur(25px); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 20px 50px rgba(0,0,0,0.9); }
+        .playfair { font-family: 'Playfair Display', serif; }
+        
+        .ai-content h2 { font-size: 2.2rem; font-family: 'Playfair Display', serif; color: #60a5fa; margin-top: 2rem; margin-bottom: 1.5rem; border-bottom: 1px solid rgba(96, 165, 250, 0.3); padding-bottom: 0.8rem; text-shadow: 1px 1px 3px black; display: inline-block;}
+        .ai-content h3 { font-size: 1.3rem; color: #86efac; margin-top: 2rem; margin-bottom: 1rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; font-size: 1rem;}
+        
+        .ai-content ul { background: rgba(255,255,255,0.03) !important; padding: 1.5rem !important; border-radius: 20px !important; border: 1px solid rgba(255,255,255,0.05) !important; list-style-type: none !important; margin-bottom: 1.5rem !important; box-shadow: inset 0 0 20px rgba(0,0,0,0.3) !important;}
+        .ai-content li { background: rgba(30,41,59,0.5) !important; border-radius: 12px !important; border-left: 4px solid #3b82f6 !important; box-shadow: 0 4px 10px rgba(0,0,0,0.3) !important; margin-bottom: 15px !important; padding: 15px !important; color: #f8fafc !important;}
+        .ai-content p { color: #cbd5e1 !important; margin-bottom: 0.5rem; font-weight: 300; line-height: 1.6; }
+        .ai-content strong { color: #e2e8f0 !important; font-weight: 600; font-size: 1.05em !important; }
+        .ai-content span { color: #4ade80 !important; }
+        
+        .leaflet-popup-content-wrapper { background: rgba(15,23,42,0.95); color: white; backdrop-filter: blur(10px); border: 1px solid rgba(96,165,250,0.4); box-shadow: 0 10px 25px rgba(0,0,0,0.8); }
+        .leaflet-popup-tip { background: rgba(15,23,42,0.95); }
+
+        /* 🎯 THE FIX: Dedicated PDF Print Mode CSS */
+        .pdf-mode { background-color: #0f172a !important; background-image: none !important; color: #f8fafc !important; padding: 20px !important; }
+        .pdf-mode .glass-panel { background: transparent !important; backdrop-filter: none !important; border: none !important; box-shadow: none !important; }
+        .pdf-mode .ai-content ul { background: #1e293b !important; border: 1px solid #334155 !important; }
+        .pdf-mode .ai-content li { background: #334155 !important; box-shadow: none !important; }
+        
+        /* Forces the PDF engine to NEVER cut a day or an image in half! */
+        .day-container, .ai-content li, img { page-break-inside: avoid !important; break-inside: avoid !important; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col w-full">
+    <div class="hero-background" id="bg-overlay"></div>
+
+    <nav class="border-b border-white/10 glass-panel sticky top-0 z-50" data-html2canvas-ignore="true">
+        <div class="w-full px-6 lg:px-12 h-20 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <i class="fa-solid fa-map-location-dot text-blue-400 text-3xl"></i>
+                <span class="font-bold text-2xl tracking-widest uppercase playfair">Wander<span class="text-green-400 italic font-normal">india</span></span>
+            </div>
+            <div class="flex items-center gap-4">
+                <button id="download-btn" onclick="downloadPDF()" class="px-4 py-2 bg-purple-600/80 border border-purple-400/50 rounded-xl hover:bg-purple-500 transition text-xs font-bold uppercase tracking-widest text-white shadow-lg flex items-center">
+                    <i class="fa-solid fa-file-pdf mr-2"></i> <span>Download PDF</span>
+                </button>
+                <a href="/dashboard" class="px-4 py-2 bg-white/10 border border-white/20 rounded-xl hover:bg-white/20 transition text-xs font-bold uppercase tracking-widest text-white shadow-lg">
+                    <i class="fa-solid fa-house mr-1"></i> Dashboard
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <main id="pdf-content" class="flex-grow w-full max-w-[100rem] mx-auto px-4 lg:px-10 py-12">
+        <div class="text-center mb-12">
+            <h1 class="text-5xl md:text-7xl text-white playfair italic mb-3 drop-shadow-2xl">{{ destination }}</h1>
+            <p class="text-green-400 uppercase tracking-[0.3em] text-sm font-bold bg-green-900/30 inline-block px-4 py-2 rounded-full border border-green-500/30"><i class="fa-solid fa-check-circle mr-2"></i>Official Itinerary Generated</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8 lg:gap-10">
+            
+            <div class="lg:col-span-1 space-y-6" data-html2canvas-ignore="true" id="map-sidebar">
+                <div class="glass-panel p-5 rounded-3xl sticky top-28 border-t border-white/20">
+                    <h3 class="text-lg font-bold playfair text-blue-400 mb-4"><i class="fa-solid fa-route mr-2"></i>Live Route & Points</h3>
+                    
+                    <div class="mb-4 flex gap-2">
+                        <a href="/on_the_go" class="flex-1 text-center bg-purple-600/20 hover:bg-purple-600/50 border border-purple-500/50 text-purple-200 text-xs font-bold py-3 rounded-xl transition shadow-[0_0_15px_rgba(168,85,247,0.3)]">
+                            <i class="fa-solid fa-radar mr-2 text-lg"></i> Launch "On The Go" AI Map
+                        </a>
+                    </div>
+
+                    <div id="map" class="rounded-2xl overflow-hidden border border-white/10 w-full z-0 shadow-inner" style="height: 350px;"></div>
+                    <p class="text-xs text-green-400 mt-4 text-center font-semibold bg-green-900/20 py-2 rounded-lg" id="map-status"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Calculating Route...</p>
+                    
+                    <a id="gmaps-launch" href="https://www.google.com/maps/dir/?api=1&origin={{ source | urlencode }}&destination={{ destination | urlencode }}&travelmode=driving" target="_blank" class="mt-4 block w-full bg-[#16a34a] hover:bg-[#15803d] text-white text-center py-4 rounded-xl font-bold uppercase tracking-widest text-xs transition shadow-lg">
+                        <i class="fa-solid fa-diamond-turn-right mr-2 text-lg"></i> Open in Google Maps
+                    </a>
+                </div>
+            </div>
+
+            <div id="itinerary-wrapper" class="lg:col-span-3 glass-panel p-8 md:p-12 rounded-3xl border-t border-white/20 transition-all duration-300">
+                <div class="grid grid-cols-2 gap-6 mb-10">
+                    {% for img in images %}
+                    <img src="{{ img }}" class="w-full h-48 md:h-72 object-cover rounded-2xl border border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.6)]" alt="Destination Photo">
+                    {% endfor %}
+                </div>
+
+                <div class="w-full h-px bg-gradient-to-r from-transparent via-white/30 to-transparent mb-10"></div>
+
+                <div class="ai-content">
+                    {{ itinerary_html | safe }}
+                </div>
+                
+                <div class="mt-16 p-10 bg-gradient-to-br from-blue-900/40 to-black/60 border border-blue-500/30 rounded-3xl text-center relative overflow-hidden shadow-2xl" data-html2canvas-ignore="true">
+                    <div class="absolute -top-10 -right-10 text-9xl text-white opacity-5"><i class="fa-solid fa-ticket-simple"></i></div>
+                    <div class="relative z-10">
+                        <h3 class="text-3xl playfair text-white mb-2">Ready to make it a reality?</h3>
+                        <p class="text-sm text-blue-300 mb-8 uppercase tracking-widest font-bold">Lock in your prices for {{ destination }}</p>
+                        
+                        <div class="flex flex-col sm:flex-row justify-center gap-4">
+                            <a href="https://www.google.com/search?q=flights+from+{{ source }}+to+{{ destination }}" target="_blank" 
+                               class="flex-1 bg-teal-600/20 hover:bg-teal-500/40 border border-teal-500/50 text-teal-200 py-4 px-6 rounded-xl font-bold transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-3">
+                                <i class="fa-solid fa-plane-departure text-lg"></i> Find Flights
+                            </a>
+                            <a href="https://www.booking.com/searchresults.html?ss={{ destination }}" target="_blank" 
+                               class="flex-1 bg-blue-600/20 hover:bg-blue-500/40 border border-blue-500/50 text-blue-200 py-4 px-6 rounded-xl font-bold transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-3">
+                                <i class="fa-solid fa-bed text-lg"></i> Book Hotels
+                            </a>
+                            <a href="https://www.makemytrip.com/" target="_blank" 
+                               class="flex-1 bg-red-600/20 hover:bg-red-500/40 border border-red-500/50 text-red-200 py-4 px-6 rounded-xl font-bold transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-3">
+                                <i class="fa-solid fa-suitcase-rolling text-lg"></i> MakeMyTrip
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // 🎯 THE FIX: Advanced PDF Generator
+        function downloadPDF() {
+            const element = document.getElementById('pdf-content');
+            const wrapper = document.getElementById('itinerary-wrapper');
+            const btn = document.getElementById('download-btn');
+            
+            // 1. Show loading state
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> <span>Generating...</span>';
+            btn.disabled = true;
+
+            // 2. Temporarily fix layout for PDF (Expand to full width, add solid premium dark background)
+            wrapper.classList.remove('lg:col-span-3');
+            wrapper.classList.add('lg:col-span-4'); // Expand to fill the blank map space
+            element.classList.add('pdf-mode'); // Apply solid backgrounds instead of blur
+            document.getElementById('bg-overlay').style.display = 'none'; // Hide body background
+
+            const opt = {
+                margin:       [0.3, 0.3, 0.3, 0.3], // Add safe margins
+                filename:     `WanderIndia_Itinerary_{{ destination }}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#0f172a' }, // Premium dark slate background
+                jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
+                pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] } // Force it to respect page breaks!
+            };
+
+            // 3. Generate and revert UI
+            html2pdf().set(opt).from(element).save().then(() => {
+                wrapper.classList.remove('lg:col-span-4');
+                wrapper.classList.add('lg:col-span-3');
+                element.classList.remove('pdf-mode');
+                document.getElementById('bg-overlay').style.display = 'block';
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
+        }
+
+        const sourceName = "{{ source }}";
+        const destName = "{{ destination }}";
+        const GEOAPIFY_KEY = "{{ geoapify_key }}"; 
+        const statusText = document.getElementById('map-status');
+        
+        let map = L.map('map').setView([20.5937, 78.9629], 5);
+        
+        L.tileLayer(`https://maps.geoapify.com/v1/tile/dark-matter/{z}/{x}/{y}.png?apiKey=${GEOAPIFY_KEY}`, {
+            attribution: 'Powered by Geoapify'
+        }).addTo(map);
+
+        let markersLayer = L.layerGroup().addTo(map);
+
+        async function initRoute() {
+            try {
+                let resSrc = await fetch(`https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(sourceName)}&apiKey=${GEOAPIFY_KEY}`);
+                let dataSrc = await resSrc.json();
+                
+                let resDest = await fetch(`https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(destName)}&apiKey=${GEOAPIFY_KEY}`);
+                let dataDest = await resDest.json();
+
+                if(dataSrc.features.length > 0 && dataDest.features.length > 0) {
+                    let srcLat = dataSrc.features[0].properties.lat, srcLon = dataSrc.features[0].properties.lon;
+                    let destLat = dataDest.features[0].properties.lat, destLon = dataDest.features[0].properties.lon;
+
+                    L.marker([srcLat, srcLon]).addTo(map).bindPopup("<b style='color:black;'>Start:</b> " + sourceName);
+                    L.marker([destLat, destLon]).addTo(map).bindPopup("<b style='color:black;'>End:</b> " + destName).openPopup();
+
+                    let routeUrl = `https://api.geoapify.com/v1/routing?waypoints=${srcLat},${srcLon}|${destLat},${destLon}&mode=drive&apiKey=${GEOAPIFY_KEY}`;
+                    let resRoute = await fetch(routeUrl);
+                    let dataRoute = await resRoute.json();
+
+                    if(dataRoute.features && dataRoute.features.length > 0) {
+                        let routeLayer = L.geoJSON(dataRoute, {
+                            style: { color: '#60a5fa', weight: 4, opacity: 0.8 }
+                        }).addTo(map);
+
+                        map.fitBounds(routeLayer.getBounds(), { padding: [30, 30] });
+                        statusText.innerHTML = `<i class='fa-solid fa-check text-green-400 mr-2'></i>Route mapped successfully.`;
+                    } else {
+                        statusText.innerText = "Could not calculate a driving route.";
+                        map.setView([destLat, destLon], 10);
+                    }
+                } else {
+                    statusText.innerText = "Could not locate cities on map.";
+                }
+            } catch(e) {
+                statusText.innerText = "Map connection error.";
+            }
+        }
+        
+        setTimeout(initRoute, 500);
+        
+        document.addEventListener("DOMContentLoaded", function() {
+            const aiContainer = document.querySelector('.ai-content');
+            if (aiContainer) {
+                aiContainer.innerHTML = aiContainer.innerHTML
+                    .replace(/<br\s*\/?>/gi, '')       
+                    .replace(/```html/gi, '')
+                    .replace(/```/gi, '');
+            }
+        });
+    </script>
+</body>
+</html>

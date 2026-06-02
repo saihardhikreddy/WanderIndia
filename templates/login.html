@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wanderindia | Incredible India</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&family=Playfair+Display:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
+    
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    
+    <style>
+        :root { --glow: rgba(59, 130, 246, 0.6); --glass: rgba(10, 20, 30, 0.65); --white: #ffffff; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Outfit', sans-serif; height: 100vh; display: flex; justify-content: center; align-items: center; overflow: hidden; background-color: #0f172a; }
+        
+        .hero-background {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+            /* Epic Misty Mountains Background */
+            background-image: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.8)), url('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=80&w=2000');
+            background-size: cover; background-position: center; 
+            animation: slowZoom 25s infinite alternate ease-in-out;
+        }
+        @keyframes slowZoom { from { transform: scale(1); } to { transform: scale(1.15); } }
+
+        .login-card {
+            background: var(--glass); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
+            padding: 50px 40px; border-radius: 35px; border: 1px solid rgba(255, 255, 255, 0.15);
+            width: 90%; max-width: 440px; text-align: center; box-shadow: 0 40px 100px rgba(0,0,0,0.9);
+            animation: float 6s ease-in-out infinite;
+        }
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-8px); }
+            100% { transform: translateY(0px); }
+        }
+        
+        h1 { font-family: 'Playfair Display', serif; color: var(--white); font-size: 3.2rem; margin-bottom: 5px; font-style: italic; text-shadow: 2px 2px 10px rgba(0,0,0,0.9); letter-spacing: 1px; }
+        .subtitle { color: #cbd5e1; margin-bottom: 30px; letter-spacing: 4px; text-transform: uppercase; font-size: 0.75rem; text-shadow: 1px 1px 3px rgba(0,0,0,0.9); font-weight: 600;}
+        
+        .input-group { text-align: left; margin-bottom: 18px; }
+        label { color: #f8fafc; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; display: block; text-shadow: 1px 1px 2px rgba(0,0,0,0.9); }
+        input { width: 100%; background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.2); padding: 15px 20px; border-radius: 18px; color: white; font-size: 0.95rem; outline: none; transition: all 0.3s ease; box-shadow: inset 0 2px 5px rgba(0,0,0,0.5); }
+        input::placeholder { color: #94a3b8; }
+        input:focus { background: rgba(0, 0, 0, 0.8); border-color: #60a5fa; box-shadow: 0 0 15px rgba(96, 165, 250, 0.4), inset 0 2px 5px rgba(0,0,0,0.5); transform: translateY(-2px); }
+        
+        .btn-primary { width: 100%; padding: 16px; border-radius: 18px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; font-weight: bold; border: none; cursor: pointer; margin-top: 10px; text-transform: uppercase; letter-spacing: 2px; transition: all 0.3s ease; box-shadow: 0 10px 20px rgba(0,0,0,0.4); }
+        .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 15px 25px rgba(0,0,0,0.6), 0 0 20px var(--glow); background: linear-gradient(135deg, #60a5fa, #3b82f6); }
+
+        .google-btn-container { display: flex; justify-content: center; margin-top: 15px; background: rgba(255,255,255,0.95); padding: 5px; border-radius: 15px; transition: transform 0.3s ease; }
+        .google-btn-container:hover { transform: scale(1.02); }
+        .toggle-link { color: #93c5fd; cursor: pointer; text-decoration: none; font-size: 0.85rem; margin-top: 20px; display: inline-block; transition: 0.3s; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); border-bottom: 1px dashed #93c5fd; padding-bottom: 2px; }
+        .toggle-link:hover { color: #ffffff; border-bottom: 1px solid #ffffff; }
+    </style>
+</head>
+<body>
+    <div class="hero-background"></div>
+    <div class="login-card">
+        <h1>Wanderindia</h1>
+        <p class="subtitle">Discover Incredible India</p>
+        
+        <form id="auth-form" method="POST" action="/normal-login">
+            <div class="input-group" id="name-group" style="display: none;">
+                <label>Full Name</label>
+                <input type="text" name="name" placeholder="Traveler Name">
+            </div>
+            <div class="input-group">
+                <label>Email Address</label>
+                <input type="email" name="email" required placeholder="traveler@india.com">
+            </div>
+            <div class="input-group">
+                <label>Password</label>
+                <input type="password" name="password" required placeholder="••••••••">
+            </div>
+            <button type="submit" id="submit-btn" class="btn-primary">Sign In</button>
+        </form>
+
+        <a class="toggle-link" onclick="toggleMode()" id="toggle-text">Need an account? Register here</a>
+
+        <div style="color:rgba(255,255,255,0.4); margin:25px 0; font-size: 0.75rem; text-shadow: 1px 1px 2px black; letter-spacing: 2px;">— OR —</div>
+
+        <div id="g_id_onload" 
+             data-client_id="{{ client_id }}" 
+             data-context="signin" 
+             data-ux_mode="popup" 
+             data-callback="handleGoogleResponse" 
+             data-auto_prompt="false">
+        </div>
+        <div class="google-btn-container">
+            <div class="g_id_signin" data-type="standard" data-shape="rectangular" data-theme="outline" data-text="continue_with" data-size="large" data-logo_alignment="center" style="width: 100%;"></div>
+        </div>
+
+        <form id="google-login-form" method="POST" action="/google-login" style="display: none;">
+            <input type="hidden" id="credential" name="credential">
+        </form>
+    </div>
+
+    <script>
+        // UI Toggle for Login vs Register
+        let isLogin = true;
+        function toggleMode() {
+            isLogin = !isLogin;
+            const form = document.getElementById('auth-form');
+            const nameGroup = document.getElementById('name-group');
+            const submitBtn = document.getElementById('submit-btn');
+            const toggleText = document.getElementById('toggle-text');
+
+            if (isLogin) {
+                form.action = "/normal-login";
+                nameGroup.style.display = "none";
+                submitBtn.innerText = "Sign In";
+                toggleText.innerText = "Need an account? Register here";
+            } else {
+                form.action = "/register";
+                nameGroup.style.display = "block";
+                submitBtn.innerText = "Create Account";
+                toggleText.innerText = "Already have an account? Sign in";
+            }
+        }
+
+        // Intercepts Google's response and sends it to the hidden form
+        function handleGoogleResponse(response) {
+            // Set the value of the hidden input
+            document.getElementById('credential').value = response.credential;
+            // Force the browser to submit the form exactly like a standard login
+            document.getElementById('google-login-form').submit();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | Wanderindia</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Playfair+Display:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        :root { --glass: rgba(0, 0, 0, 0.6); }
+        body { font-family: 'Outfit', sans-serif; color: white; background-color: #000; overflow-x: hidden; scroll-behavior: smooth;}
+        
+        .hero-background {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100vh; z-index: -1;
+            background-image: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.7)), url('https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?q=80&w=2070');
+            background-size: cover; background-position: center;
+        }
+        .hero-glow {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background:
+                radial-gradient(circle at 15% 20%, rgba(59,130,246,0.25), transparent 30%),
+                radial-gradient(circle at 80% 75%, rgba(16,185,129,0.18), transparent 35%);
+            pointer-events: none;
+        }
+        
+        .glass-panel { background: var(--glass); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: 0 20px 40px rgba(0,0,0,0.6); }
+        .stat-card { transition: transform 0.25s ease, border-color 0.25s ease; }
+        .stat-card:hover { transform: translateY(-4px); border-color: rgba(147,197,253,0.55); }
+        .playfair { font-family: 'Playfair Display', serif; }
+        
+        /* Fixed: Added color-scheme: dark so the Calendar Icon is visible! */
+        .glass-input { 
+            background: rgba(0, 0, 0, 0.6); 
+            border: 1px solid rgba(255, 255, 255, 0.3); 
+            color: white; 
+            transition: all 0.3s ease; 
+            font-weight: 500;
+            color-scheme: dark; 
+        }
+        
+        .glass-input::placeholder { color: #cbd5e1; }
+        .glass-input:focus { background: rgba(0, 0, 0, 0.9); border-color: #60a5fa; outline: none; }
+        select.glass-input option { background-color: #1a1a1a; color: white; }
+
+        /* Loader Animation */
+        #loader { 
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); 
+            z-index: 9999; backdrop-filter: blur(15px); flex-direction: column; 
+            align-items: center; justify-content: center; 
+        }
+        .flight-animation { position: relative; width: 150px; height: 150px; margin-bottom: 1rem; }
+        .plane-icon {
+            position: absolute; font-size: 4rem; color: #60a5fa; 
+            text-shadow: 0 10px 20px rgba(96, 165, 250, 0.6);
+            animation: flight-path 2.5s infinite cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        @keyframes flight-path {
+            0% { transform: translate(-80px, 80px) rotate(10deg) scale(0.6); opacity: 0; }
+            25% { opacity: 1; transform: translate(-30px, 30px) rotate(25deg) scale(0.9); }
+            50% { transform: translate(20px, -20px) rotate(40deg) scale(1.1); }
+            75% { opacity: 1; transform: translate(70px, -70px) rotate(55deg) scale(0.9); }
+            100% { transform: translate(120px, -120px) rotate(70deg) scale(0.6); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <div id="loader">
+        <div class="flight-animation">
+            <i class="fa-solid fa-plane plane-icon"></i>
+        </div>
+        <h2 class="text-3xl playfair text-blue-400 animate-pulse italic">Mapping your journey...</h2>
+        <p class="text-sm text-gray-400 mt-3 tracking-[0.2em] uppercase font-bold">Preparing for takeoff</p>
+    </div>
+
+    <div class="hero-background"></div>
+    <div class="hero-glow"></div>
+
+    <nav class="border-b border-white/10 glass-panel sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-20 items-center">
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-map-location-dot text-blue-400 text-3xl"></i>
+                    <span class="font-bold text-2xl tracking-widest uppercase playfair">Wander<span class="text-green-400 font-normal italic">india</span></span>
+                </div>
+                
+                <div class="flex items-center gap-3">
+                    <span class="text-sm font-medium text-gray-200 mr-2 hidden md:block">Namaste, {{ name }}</span>
+                    
+                    <a href="/history" class="px-4 py-2 bg-purple-500/20 border border-purple-500/50 rounded-xl hover:bg-purple-500/40 transition text-xs font-bold uppercase tracking-widest text-purple-100 shadow-lg backdrop-blur-md">
+                        <i class="fa-solid fa-clock-rotate-left mr-1"></i> History
+                    </a>
+
+                    <button onclick="fillRandomPlace()" class="px-4 py-2 bg-blue-500/20 border border-blue-500/50 rounded-xl hover:bg-blue-500/40 transition text-xs font-bold uppercase tracking-widest text-white shadow-lg backdrop-blur-md">
+                        <i class="fa-solid fa-dice text-blue-300 mr-1"></i> Explore India
+                    </button>
+                    
+                    <a href="/logout" class="px-4 py-2 bg-red-500/20 border border-red-500/50 rounded-xl hover:bg-red-500/40 transition text-xs font-bold uppercase tracking-widest text-red-100 shadow-lg backdrop-blur-md">
+                        <i class="fa-solid fa-power-off mr-1"></i> Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-grow max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16 w-full space-y-16">
+        
+        <section class="text-center space-y-8">
+            <h1 class="text-5xl md:text-6xl text-white playfair italic drop-shadow-lg">Welcome back, {{ name }}</h1>
+            <p class="text-lg text-gray-200 uppercase tracking-[0.3em] text-sm drop-shadow-md">Your Passport to Incredible India</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6">
+                <div class="glass-panel stat-card p-6 rounded-3xl"><h3 class="text-4xl font-bold text-blue-400">{{ total_trips }}</h3><p class="text-xs uppercase tracking-widest text-gray-300 mt-2">Total Expeditions</p></div>
+                <div class="glass-panel stat-card p-6 rounded-3xl"><h3 class="text-4xl font-bold text-white">{{ ai_count }}</h3><p class="text-xs uppercase tracking-widest text-gray-300 mt-2">AI Recommendations</p></div>
+                <div class="glass-panel stat-card p-6 rounded-3xl"><h3 class="text-4xl font-bold text-green-400">{{ direct_count }}</h3><p class="text-xs uppercase tracking-widest text-gray-300 mt-2">Direct Plans</p></div>
+            </div>
+        </section>
+
+        <section class="glass-panel p-10 rounded-3xl relative overflow-hidden" id="planner">
+            <div class="text-center mb-10">
+                <h2 class="text-3xl playfair mb-2 text-white">Initialize New Itinerary</h2>
+                <p class="text-gray-300 text-sm uppercase tracking-widest font-semibold">Enter your parameters below</p>
+            </div>
+            {% if dashboard_error %}
+            <div class="mb-8 bg-red-500/20 border border-red-400/60 text-red-100 px-5 py-4 rounded-2xl font-semibold text-sm">
+                <i class="fa-solid fa-triangle-exclamation mr-2"></i>{{ dashboard_error }}
+            </div>
+            {% endif %}
+            
+            <form action="/dashboard" method="POST" class="space-y-6 relative z-10" onsubmit="showLoader()">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-widest text-blue-200 mb-2 drop-shadow-md">Origin Point (City in India) *</label>
+                        <input type="text" name="source" id="source" required placeholder="e.g. Bangalore" value="{{ form_data.get('source', '') }}" class="w-full px-5 py-4 rounded-xl glass-input">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-widest text-blue-200 mb-2 drop-shadow-md">Target Destination</label>
+                        <input type="text" id="destination_input" name="destination" placeholder="Leave blank for AI Discovery" value="{{ form_data.get('destination', '') }}" class="w-full px-5 py-4 rounded-xl glass-input">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-widest text-blue-200 mb-2 drop-shadow-md">Departure Date *</label>
+                        <input type="date" name="start_date" required value="{{ form_data.get('start_date', '') }}" class="w-full px-5 py-4 rounded-xl glass-input">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-widest text-blue-200 mb-2 drop-shadow-md">Return Date *</label>
+                        <input type="date" name="end_date" required value="{{ form_data.get('end_date', '') }}" class="w-full px-5 py-4 rounded-xl glass-input">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-widest text-green-300 mb-2 drop-shadow-md">Exact Budget (₹) *</label>
+                        <input type="number" name="budget" required min="1000" placeholder="e.g. 25000" value="{{ form_data.get('budget', '') }}" class="w-full px-5 py-4 rounded-xl glass-input font-bold text-green-300 border-green-500/30">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-widest text-blue-200 mb-2 drop-shadow-md">Companion Profile</label>
+                        <select name="travel_type" class="w-full px-5 py-4 rounded-xl glass-input">
+                            <option value="Solo Explorer" {% if form_data.get('travel_type') == 'Solo Explorer' %}selected{% endif %}>Solo Explorer</option>
+                            <option value="Couple / Romantic" {% if form_data.get('travel_type') == 'Couple / Romantic' %}selected{% endif %}>Couple / Romantic</option>
+                            <option value="Friends Group" {% if form_data.get('travel_type') == 'Friends Group' %}selected{% endif %}>Friends Group</option>
+                            <option value="Family Gathering" {% if form_data.get('travel_type') == 'Family Gathering' %}selected{% endif %}>Family Gathering</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-widest text-orange-200 mb-2 drop-shadow-md">Trip Vibe & Theme</label>
+                        <select name="vibe" class="w-full px-5 py-4 rounded-xl glass-input border-orange-500/30">
+                            <option value="Any (Surprise Me!)" {% if form_data.get('vibe') == 'Any (Surprise Me!)' %}selected{% endif %}>Surprise Me!</option>
+                            <option value="Beaches & Coastal Relaxing" {% if form_data.get('vibe') == 'Beaches & Coastal Relaxing' %}selected{% endif %}>Beaches & Coastal</option>
+                            <option value="Mountains & Valleys" {% if form_data.get('vibe') == 'Mountains & Valleys' %}selected{% endif %}>Mountains & Valleys</option>
+                            <option value="Temples & Spiritual" {% if form_data.get('vibe') == 'Temples & Spiritual' %}selected{% endif %}>Temples & Spiritual</option>
+                            <option value="History, Forts & Culture" {% if form_data.get('vibe') == 'History, Forts & Culture' %}selected{% endif %}>History & Forts</option>
+                            <option value="City Vibe & Nightlife" {% if form_data.get('vibe') == 'City Vibe & Nightlife' %}selected{% endif %}>City Vibe & Nightlife</option>
+                            <option value="Wildlife & Nature" {% if form_data.get('vibe') == 'Wildlife & Nature' %}selected{% endif %}>Wildlife & Nature</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-widest text-orange-200 mb-2 drop-shadow-md">Food & Cuisine Preferences</label>
+                        <input type="text" name="cuisine" placeholder="e.g. Seafood, Street Food, Pure Veg..." value="{{ form_data.get('cuisine', '') }}" class="w-full px-5 py-4 rounded-xl glass-input border-orange-500/30">
+                    </div>
+                </div>
+
+                <div class="pt-8 flex flex-col md:flex-row gap-4">
+                    <button type="submit" name="action" value="recommend" class="flex-1 bg-blue-500 text-white font-bold py-5 rounded-2xl hover:bg-blue-600 transition-all uppercase tracking-widest text-sm shadow-[0_0_20px_rgba(59,130,246,0.4)] hover:-translate-y-1">
+                        <i class="fa-solid fa-wand-magic-sparkles mr-2 text-blue-200"></i> Request AI Recommendation
+                    </button>
+                    <button type="submit" name="action" value="direct" class="flex-1 bg-transparent border border-white/40 text-white font-bold py-5 rounded-2xl hover:bg-white/20 transition-all uppercase tracking-widest text-sm hover:-translate-y-1">
+                        <i class="fa-solid fa-route mr-2"></i> Plan Direct Route
+                    </button>
+                </div>
+            </form>
+            
+            <button type="button" onclick="toggleMap(true)" class="w-full mt-6 bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 font-bold py-4 rounded-2xl hover:bg-emerald-500/40 transition-all uppercase tracking-widest text-sm shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:-translate-y-1">
+                <i class="fa-solid fa-map-location-dot mr-2"></i> Open Magic Route Planner
+            </button>
+            
+        </section>
+
+    </main>
+
+    <div id="map-overlay" class="fixed inset-0 bg-black/95 z-[10000] hidden flex-col p-4 md:p-12 backdrop-blur-xl transition-all">
+        <div id="map" class="flex-grow w-full rounded-2xl shadow-2xl border border-white/10 mb-4 min-h-[50vh]"></div>
+        
+        <div class="glass-panel p-4 md:p-6 rounded-2xl flex flex-col gap-4">
+            <div class="flex flex-col md:flex-row gap-4 items-stretch">
+                <textarea id="paste-input" rows="2" class="flex-grow px-5 py-3 rounded-xl glass-input resize-none text-sm" placeholder="Paste your list of places here (e.g. Taj Mahal, Red Fort, India Gate...)"></textarea>
+                <button type="button" onclick="plotPastedPlaces(this)" class="px-8 py-3 bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 rounded-xl font-bold text-sm uppercase tracking-widest hover:bg-emerald-500/40 transition whitespace-nowrap flex items-center justify-center">
+                    <i class="fa-solid fa-map-pin mr-2"></i> Plot Route
+                </button>
+            </div>
+            
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-2 pt-4 border-t border-white/10">
+                <a id="gmaps-link" href="#" target="_blank" class="hidden w-full sm:w-auto text-center px-6 py-3 bg-blue-500/20 border border-blue-500/50 text-blue-300 rounded-xl font-bold text-sm uppercase tracking-widest hover:bg-blue-500/40 transition">
+                    <i class="fa-brands fa-google mr-2"></i> Open in Maps
+                </a>
+                <button type="button" onclick="toggleMap(false)" class="w-full sm:w-auto px-6 py-3 bg-red-500/20 border border-red-500/50 text-red-300 rounded-xl font-bold text-sm uppercase tracking-widest hover:bg-red-500/40 transition ml-auto">
+                    <i class="fa-solid fa-xmark mr-2"></i> Close Planner
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showLoader() { document.getElementById('loader').style.display = 'flex'; }
+        
+        function fillRandomPlace() {
+            const places = ["Leh Ladakh", "Varanasi", "Munnar", "Rishikesh", "Udaipur", "Andaman Islands", "Meghalaya", "Gokarna", "Spiti Valley", "Coorg", "Hampi", "Pondicherry"];
+            const random = places[Math.floor(Math.random() * places.length)];
+            const destInput = document.getElementById('destination_input');
+            destInput.value = random;
+            document.getElementById('planner').scrollIntoView({ behavior: 'smooth' });
+            destInput.style.backgroundColor = "rgba(59, 130, 246, 0.4)";
+            setTimeout(() => { destInput.style.backgroundColor = "rgba(0, 0, 0, 0.6)"; }, 1000);
+        }
+
+        // ==========================================
+        // MAP & PASTE-TO-PIN LOGIC
+        // ==========================================
+        const GEOAPIFY_KEY = "{{ geoapify_key }}"; 
+        let map = null;
+        let startCoord = null;
+        let endCoord = null;
+        let customWaypoints = [];
+        let currentRouteLayer = null;
+
+        const greenIcon = new L.Icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+        });
+
+        function toggleMap(show) {
+            const overlay = document.getElementById('map-overlay');
+            if(show) {
+                overlay.classList.remove('hidden');
+                overlay.classList.add('flex');
+                if (!map) initMap();
+                else {
+                    setTimeout(() => map.invalidateSize(), 100);
+                    updateBaseRoute(); // Refreshes Start/End pins if user changed them
+                }
+            } else {
+                overlay.classList.add('hidden');
+                overlay.classList.remove('flex');
+            }
+        }
+
+        async function initMap() {
+            map = L.map('map').setView([20.5937, 78.9629], 5);
+            L.tileLayer(`https://maps.geoapify.com/v1/tile/dark-matter/{z}/{x}/{y}.png?apiKey=${GEOAPIFY_KEY}`).addTo(map);
+            updateBaseRoute();
+        }
+
+        async function geocode(city) {
+            const res = await fetch(`https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(city)}&apiKey=${GEOAPIFY_KEY}`);
+            const data = await res.json();
+            if (!data.features || data.features.length === 0) throw new Error("Location not found");
+            return { lat: data.features[0].properties.lat, lon: data.features[0].properties.lon, name: city };
+        }
+
+        function getDistance(c1, c2) { return Math.pow(c1.lat - c2.lat, 2) + Math.pow(c1.lon - c2.lon, 2); }
+
+        function optimizeRouteOrder(start, points) {
+            let current = start; let unvisited = [...points]; let optimized = [];
+            while(unvisited.length > 0) {
+                let nearestIdx = 0; let minDist = Infinity;
+                for(let i=0; i<unvisited.length; i++) {
+                    let d = getDistance(current, unvisited[i]);
+                    if(d < minDist) { minDist = d; nearestIdx = i; }
+                }
+                current = unvisited[nearestIdx];
+                optimized.push(current);
+                unvisited.splice(nearestIdx, 1);
+            }
+            return optimized;
+        }
+
+        function generateGoogleMapsUrl(points) {
+            if (points.length < 1) return "#";
+            
+            const origin = `${points[0].lat},${points[0].lon}`;
+            const destination = points.length > 1 ? `${points[points.length-1].lat},${points[points.length-1].lon}` : origin;
+            
+            let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
+            if (points.length > 2) {
+                const waypoints = points.slice(1, points.length - 1).map(p => `${p.lat},${p.lon}`).join('|');
+                url += `&waypoints=${waypoints}`;
+            }
+            return url;
+        }
+
+        async function drawOptimizedRoute() {
+            let pointsToRoute = [];
+            
+            if (startCoord) pointsToRoute.push(startCoord);
+            if (customWaypoints.length > 0) {
+                let optimized = startCoord ? optimizeRouteOrder(startCoord, customWaypoints) : customWaypoints;
+                pointsToRoute.push(...optimized);
+            }
+            if (endCoord) pointsToRoute.push(endCoord);
+
+            // Update bounds so the map zooms perfectly even if routing fails
+            if (pointsToRoute.length > 0) {
+                const allLats = pointsToRoute.map(w => w.lat);
+                const allLons = pointsToRoute.map(w => w.lon);
+                map.fitBounds(L.latLngBounds([Math.min(...allLats), Math.min(...allLons)], [Math.max(...allLats), Math.max(...allLons)]), { padding: [40, 40] });
+            }
+
+            // Reveal Google Maps button
+            const gmapsLink = document.getElementById('gmaps-link');
+            if (pointsToRoute.length > 0) {
+                gmapsLink.href = generateGoogleMapsUrl(pointsToRoute);
+                gmapsLink.classList.remove('hidden');
+                gmapsLink.classList.add('inline-block');
+            } else {
+                gmapsLink.classList.add('hidden');
+                gmapsLink.classList.remove('inline-block');
+            }
+
+            // Draw the actual line
+            if (pointsToRoute.length >= 2) {
+                const waypointString = pointsToRoute.map(p => `${p.lat},${p.lon}`).join('|');
+                try {
+                    const routeRes = await fetch(`https://api.geoapify.com/v1/routing?waypoints=${waypointString}&mode=drive&apiKey=${GEOAPIFY_KEY}`);
+                    const routeData = await routeRes.json();
+                    
+                    if (currentRouteLayer) map.removeLayer(currentRouteLayer);
+                    currentRouteLayer = L.geoJSON(routeData, { style: { color: "#3498db", weight: 5 } }).addTo(map);
+                } catch (err) { console.error("Could not draw driving line:", err); }
+            }
+        }
+
+        async function updateBaseRoute() {
+            const srcInput = document.getElementById('source').value;
+            const destInput = document.getElementById('destination_input').value;
+            
+            // Clear existing markers
+            map.eachLayer((layer) => { if (layer instanceof L.Marker || layer instanceof L.GeoJSON) { layer.remove(); } });
+            
+            startCoord = null; endCoord = null;
+            
+            if (srcInput) {
+                try { startCoord = await geocode(srcInput); L.marker([startCoord.lat, startCoord.lon]).addTo(map).bindPopup("Start: " + srcInput); } catch(e){}
+            }
+            if (destInput) {
+                try { endCoord = await geocode(destInput); L.marker([endCoord.lat, endCoord.lon]).addTo(map).bindPopup("Destination: " + destInput); } catch(e){}
+            }
+            
+            customWaypoints.forEach(wp => { L.marker([wp.lat, wp.lon], {icon: greenIcon}).addTo(map).bindPopup(wp.name); });
+            
+            drawOptimizedRoute();
+        }
+
+        // ==========================================
+        // TEXTBOX PLOT LOGIC (Bulletproof)
+        // ==========================================
+        async function plotPastedPlaces(btn) {
+            const text = document.getElementById('paste-input').value.trim();
+            if (!text) {
+                alert("Please paste some places first!");
+                return;
+            }
+
+            const rawPlaces = text.split(/[\n,•]/).map(p => p.trim()).filter(p => p.length > 2);
+            if (rawPlaces.length === 0) return;
+
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Plotting...';
+            btn.disabled = true;
+
+            const placesToProcess = rawPlaces.slice(0, 10);
+            let addedCount = 0;
+            
+            for (const placeName of placesToProcess) {
+                try {
+                    const coord = await geocode(placeName);
+                    if(coord) {
+                        customWaypoints.push(coord);
+                        L.marker([coord.lat, coord.lon], {icon: greenIcon}).addTo(map).bindPopup(`<b>${coord.name}</b>`);
+                        addedCount++;
+                    }
+                } catch (err) { 
+                    console.error("Failed to locate:", placeName); 
+                } 
+            }
+            
+            if(addedCount > 0) {
+                await drawOptimizedRoute();
+            } else {
+                alert("Could not locate those places! Try adding the city name (e.g. 'Taj Mahal, Agra').");
+            }
+            
+            btn.innerHTML = originalHTML;
+            btn.disabled = false;
+            document.getElementById('paste-input').value = '';
+        }
+    </script>
+</body>
+</html>

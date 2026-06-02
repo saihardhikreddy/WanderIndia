@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>On The Go | Wanderindia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Playfair+Display:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background: black; font-family: 'Outfit', sans-serif;}
+        #map { position: absolute; top: 0; left: 0; width: 100%; height: 100vh; z-index: 0; }
+        .glass-panel { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(25px); border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: 0 20px 40px rgba(0,0,0,0.8); }
+        .playfair { font-family: 'Playfair Display', serif; }
+        .leaflet-popup-content-wrapper { background: rgba(15,23,42,0.95); color: white; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); }
+        .leaflet-popup-tip { background: rgba(15,23,42,0.95); }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div class="absolute top-6 left-6 z-10 flex gap-4" data-html2canvas-ignore="false">
+        <a href="javascript:history.back()" class="glass-panel px-5 py-3 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition shadow-lg flex items-center">
+            <i class="fa-solid fa-arrow-left mr-2"></i> Back
+        </a>
+        
+        <button id="download-map-btn" onclick="downloadMap()" class="glass-panel px-5 py-3 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition shadow-lg flex items-center">
+            <i class="fa-solid fa-download mr-2"></i> Save Map
+        </button>
+    </div>
+
+    <div class="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-10 w-[95%] max-w-xl glass-panel p-6 rounded-3xl text-center flex flex-col gap-4" id="control-panel">
+        <div>
+            <h2 class="text-white playfair text-2xl md:text-3xl mb-1 italic">{{ source }} to {{ destination }}</h2>
+            <p class="text-blue-300 text-xs uppercase tracking-[0.2em] font-bold">High Density Scanner</p>
+        </div>
+        
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 w-full">
+            <button onclick="deepScan('accommodation.hotel')" class="bg-blue-600/20 hover:bg-blue-500/40 border border-blue-500/50 text-blue-200 py-3 rounded-xl transition-all uppercase tracking-widest text-[10px] font-bold shadow-lg">
+                <i class="fa-solid fa-bed block text-lg mb-1"></i> Stays
+            </button>
+            <button onclick="deepScan('catering.restaurant')" class="bg-emerald-600/20 hover:bg-emerald-500/40 border border-emerald-500/50 text-emerald-200 py-3 rounded-xl transition-all uppercase tracking-widest text-[10px] font-bold shadow-lg">
+                <i class="fa-solid fa-utensils block text-lg mb-1"></i> Food
+            </button>
+            <button onclick="deepScan('service.vehicle.fuel')" class="bg-red-600/20 hover:bg-red-500/40 border border-red-500/50 text-red-200 py-3 rounded-xl transition-all uppercase tracking-widest text-[10px] font-bold shadow-lg">
+                <i class="fa-solid fa-gas-pump block text-lg mb-1"></i> Fuel
+            </button>
+            <button onclick="deepScan('tourism.attraction')" class="bg-purple-600/20 hover:bg-purple-500/40 border border-purple-500/50 text-purple-200 py-3 rounded-xl transition-all uppercase tracking-widest text-[10px] font-bold shadow-lg">
+                <i class="fa-solid fa-camera block text-lg mb-1"></i> Sights
+            </button>
+        </div>
+
+        <a id="gmaps-launch" href="#" target="_blank" class="bg-[#16a34a] hover:bg-[#15803d] text-white font-bold py-4 rounded-xl uppercase tracking-widest text-xs w-full transition-all shadow-lg flex items-center justify-center gap-2 hidden">
+            <i class="fa-solid fa-diamond-turn-right text-lg"></i> <span id="gmaps-text">Open Route in Maps</span>
+        </a>
+        
+        <p id="status" class="text-gray-300 text-xs font-mono m-0"></p>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const GEOAPIFY_KEY = "{{ geoapify_key }}";
+        const sourceName = "{{ source }}";
+        const destName = "{{ destination }}";
+        
+        let map = L.map('map', {zoomControl: false}).setView([20.5937, 78.9629], 5);
+        L.tileLayer(`https://maps.geoapify.com/v1/tile/dark-matter/{z}/{x}/{y}.png?apiKey=${GEOAPIFY_KEY}`).addTo(map);
+
+        let markersLayer = L.layerGroup().addTo(map);
+        let routeWaypoints = [];
+        let startPoint, endPoint;
+
+        async function initRoute() {
+            try {
+                document.getElementById('status').innerText = "> Initializing highway...";
+                let resSrc = await fetch(`https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(sourceName)}&apiKey=${GEOAPIFY_KEY}`).then(r=>r.json());
+                let resDest = await fetch(`https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(destName)}&apiKey=${GEOAPIFY_KEY}`).then(r=>r.json());
+
+                if(resSrc.features.length > 0 && resDest.features.length > 0) {
+                    startPoint = resSrc.features[0].properties;
+                    endPoint = resDest.features[0].properties;
+
+                    L.marker([startPoint.lat, startPoint.lon]).addTo(map).bindPopup("Start: " + sourceName);
+                    L.marker([endPoint.lat, endPoint.lon]).addTo(map).bindPopup("End: " + destName);
+
+                    let routeData = await fetch(`https://api.geoapify.com/v1/routing?waypoints=${startPoint.lat},${startPoint.lon}|${endPoint.lat},${endPoint.lon}&mode=drive&apiKey=${GEOAPIFY_KEY}`).then(r=>r.json());
+                    
+                    if(routeData.features) {
+                        L.geoJSON(routeData, {style: {color: '#60a5fa', weight: 5, opacity: 0.8}}).addTo(map);
+                        map.fitBounds(L.latLngBounds([startPoint.lat, startPoint.lon], [endPoint.lat, endPoint.lon]), {padding: [50, 50]});
+                        
+                        let coords = routeData.features[0].geometry.coordinates[0];
+                        let sampleStep = Math.max(1, Math.floor(coords.length / 15)); 
+                        for(let i=0; i<coords.length; i+=sampleStep){
+                            routeWaypoints.push({lat: coords[i][1], lon: coords[i][0]});
+                        }
+                        document.getElementById('status').innerHTML = `<span class="text-green-400">> Route online. Select a category.</span>`;
+                    }
+                }
+            } catch(e) { document.getElementById('status').innerText = "> Map connection error."; }
+        }
+
+        async function deepScan(category) {
+            const status = document.getElementById('status');
+            const gmapsBtn = document.getElementById('gmaps-launch');
+            markersLayer.clearLayers();
+
+            let themeColor = '#a855f7'; 
+            let iconName = 'Sights';
+            
+            if (category === 'accommodation.hotel') { themeColor = '#3b82f6'; iconName = 'Stays'; }
+            else if (category === 'catering.restaurant') { themeColor = '#10b981'; iconName = 'Food'; }
+            else if (category === 'service.vehicle.fuel') { themeColor = '#ef4444'; iconName = 'Fuel Pumps'; }
+            
+            status.innerHTML = `<span style="color:${themeColor}"><i class="fa-solid fa-spinner fa-spin"></i> Running deep satellite scan for ${iconName}...</span>`;
+
+            let foundPlaces = [];
+            let addedNames = new Set();
+            
+            // 🎯 We mathematically define the Start and End points to exclude them
+            let startLL = L.latLng(startPoint.lat, startPoint.lon);
+            let endLL = L.latLng(endPoint.lat, endPoint.lon);
+
+            const scanPromises = routeWaypoints.map(wp => {
+                return fetch(`https://api.geoapify.com/v2/places?categories=${category}&filter=circle:${wp.lon},${wp.lat},20000&limit=20&apiKey=${GEOAPIFY_KEY}`)
+                    .then(r => r.json())
+                    .catch(() => null);
+            });
+
+            const results = await Promise.all(scanPromises);
+
+            results.forEach(data => {
+                if (data && data.features) {
+                    data.features.forEach(f => {
+                        let p = f.properties;
+                        
+                        if (p.name && !addedNames.has(p.name)) {
+                            let ptLL = L.latLng(p.lat, p.lon);
+                            
+                            // 🎯 THE GEOFENCE FIX: Only keep the place if it is at least 15km away from origin and destination!
+                            if (ptLL.distanceTo(startLL) > 15000 && ptLL.distanceTo(endLL) > 15000) {
+                                addedNames.add(p.name);
+                                foundPlaces.push(p);
+
+                                L.circleMarker([p.lat, p.lon], {
+                                    color: themeColor, fillColor: themeColor, fillOpacity: 0.9, radius: 7
+                                }).bindPopup(`
+                                    <div style="text-align: center;">
+                                        <b style="color:${themeColor}; font-size:16px;">${p.name}</b><br>
+                                        <span style="color:#cbd5e1; font-size:12px;">${p.city || ''}</span>
+                                    </div>
+                                `).addTo(markersLayer);
+                            }
+                        }
+                    });
+                }
+            });
+
+            if (foundPlaces.length > 0) {
+                let step = Math.max(1, Math.floor(foundPlaces.length / 8));
+                let waypointsText = [];
+                for(let i=0; i<foundPlaces.length; i+=step) {
+                    if(waypointsText.length >= 9) break;
+                    let placeStr = foundPlaces[i].name;
+                    if(foundPlaces[i].city) placeStr += `, ${foundPlaces[i].city}`;
+                    waypointsText.push(encodeURIComponent(placeStr));
+                }
+
+                gmapsBtn.href = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(sourceName)}&destination=${encodeURIComponent(destName)}&waypoints=${waypointsText.join('|')}&travelmode=driving`;
+                
+                document.getElementById('gmaps-text').innerText = `Open ${iconName} Route in Maps`;
+                gmapsBtn.classList.remove('hidden');
+                
+                status.innerHTML = `<span style="color:${themeColor}">> Found ${foundPlaces.length} verified ${iconName} along the highway!</span>`;
+            } else {
+                status.innerHTML = `<span class="text-red-400">> No named ${iconName} found along this highway segment.</span>`;
+                gmapsBtn.classList.add('hidden');
+            }
+        }
+
+        // 🎯 MAP DOWNLOADER FUNCTION
+        function downloadMap() {
+            const btn = document.getElementById('download-map-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Saving...';
+            
+            // Take a screenshot of the entire body including the UI panels and the Map
+            html2canvas(document.body, {
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: '#000000'
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `WanderIndia_Route_${sourceName}_to_${destName}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                
+                btn.innerHTML = originalText;
+            }).catch(err => {
+                console.error("Screenshot error: ", err);
+                btn.innerHTML = originalText;
+                alert("Error saving the map. Please try again.");
+            });
+        }
+
+        initRoute();
+    </script>
+</body>
+</html>

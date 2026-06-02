@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geoapify Map & Places Test</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f4f4f4; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        #map { height: 400px; width: 100%; border-radius: 8px; border: 2px solid #ccc; margin-bottom: 20px; }
+        #places-list { background: #eef2f5; padding: 15px; border-radius: 8px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>🌍 Geoapify Map & Places API</h2>
+        <div id="map"></div>
+        
+        <h3>Tourist Attractions in Chennai (Places API):</h3>
+        <ul id="places-list">Loading places...</ul>
+    </div>
+
+    <script>
+        // 1. PASTE YOUR GEOAPIFY KEY HERE
+        const GEOAPIFY_KEY = "78445a5b4cb044559069bc66491e194d";
+
+        // Coordinates for Bangalore and Chennai
+        const lat1 = 12.9716, lon1 = 77.5946;
+        const lat2 = 13.0827, lon2 = 80.2707;
+
+        // 2. Initialize the Leaflet Map
+        const map = L.map('map').setView([13.0, 78.9], 7);
+
+        // 3. Add the Geoapify Map Tiles (Dark Mode available by changing 'osm-carto' to 'dark-matter')
+        L.tileLayer(`https://maps.geoapify.com/v1/tile/osm-carto/{z}/{x}/{y}.png?apiKey=${GEOAPIFY_KEY}`, {
+            attribution: 'Powered by <a href="https://www.geoapify.com/">Geoapify</a> | © OpenStreetMap'
+        }).addTo(map);
+
+        L.marker([lat1, lon1]).addTo(map).bindPopup("Bangalore (Start)");
+        L.marker([lat2, lon2]).addTo(map).bindPopup("Chennai (End)");
+
+        // 4. Fetch the Route (Routing API)
+        const routingUrl = `https://api.geoapify.com/v1/routing?waypoints=${lat1},${lon1}|${lat2},${lon2}&mode=drive&apiKey=${GEOAPIFY_KEY}`;
+        
+        fetch(routingUrl)
+            .then(res => res.json())
+            .then(result => {
+                // Draw the blue line on the map
+                L.geoJSON(result, {
+                    style: (feature) => ({ color: "#3498db", weight: 5 })
+                }).addTo(map);
+                console.log("✅ Route loaded!");
+            })
+            .catch(err => console.error("❌ Routing error:", err));
+
+        // 5. Fetch Tourist Spots (Places API)
+        // Searching for 'tourism.attraction' within a 5000-meter radius of Chennai
+        const placesUrl = `https://api.geoapify.com/v2/places?categories=tourism.attraction&filter=circle:${lon2},${lat2},5000&limit=5&apiKey=${GEOAPIFY_KEY}`;
+
+        fetch(placesUrl)
+            .then(res => res.json())
+            .then(result => {
+                const list = document.getElementById("places-list");
+                list.innerHTML = ""; // Clear the loading text
+                
+                if (result.features && result.features.length > 0) {
+                    result.features.forEach(feature => {
+                        const name = feature.properties.name || "Unnamed Attraction";
+                        const address = feature.properties.address_line2 || "";
+                        list.innerHTML += `<li><strong>${name}</strong> <br><small>${address}</small></li>`;
+                        
+                        // Drop a pin on the map for each place!
+                        L.marker([feature.geometry.coordinates[1], feature.geometry.coordinates[0]])
+                         .addTo(map).bindPopup(name);
+                    });
+                    console.log("✅ Places loaded!");
+                } else {
+                    list.innerHTML = "<li>No tourist attractions found nearby.</li>";
+                }
+            })
+            .catch(err => {
+                document.getElementById("places-list").innerHTML = "<li style='color:red;'>Error loading places. Check console.</li>";
+                console.error("❌ Places API error:", err);
+            });
+    </script>
+</body>
+</html>

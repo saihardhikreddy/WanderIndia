@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+env/
+
+# Local Database
+history.json
+
+# Environment variables
+.env
