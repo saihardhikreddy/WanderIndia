@@ -1,11 +1,18 @@
-# Python
+# Environment variables & secrets
+.env
+*.env
+
+# SQLite Database & Runtime History
+users.db
+history.json
+*.db
+*.sqlite
+*.sqlite3
+
+# Python bytecode & cache
 __pycache__/
 *.py[cod]
-venv/
+*$py.class
+.venv/
 env/
-
-# Local Database
-history.json
-
-# Environment variables
-.env
+venv/
