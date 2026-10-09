@@ -17,7 +17,7 @@ app = Flask(__name__)
 # ==========================================
 # CONFIGURATION & API KEYS
 # ==========================================
-app.secret_key = "wanderindia_super_secret_key_2024"
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "wanderindia_super_secret_key_2024")
 
 # 🎯 SECURE KEYS: Pulling from the hidden .env file
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID") 
