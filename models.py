@@ -5,14 +5,13 @@ from dotenv import load_dotenv
 # 1. Load the hidden environment variables
 load_dotenv()
 
-# 2. DELETE your exposed key and replace it with this:
-GCP_API_KEY = os.getenv("GEMINI_API_KEY") # (Make sure the variable name matches what you use in your code)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-client = genai.Client(api_key=GEMINI_API_KEY)
-
-print("Listing available models...\n")
-
-for model in client.models.list():
-    # We changed 'supported_methods' to 'supported_actions'
-    print(f"Model Name: {model.name}")
-    print(f"Actions: {model.supported_actions}\n")
+if not GEMINI_API_KEY:
+    print("⚠️ GEMINI_API_KEY environment variable is not set. Please add it to your .env file.")
+else:
+    client = genai.Client(api_key=GEMINI_API_KEY)
+    print("Listing available models...\n")
+    for model in client.models.list():
+        print(f"Model Name: {model.name}")
+        print(f"Actions: {model.supported_actions}\n")
