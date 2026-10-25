@@ -27,7 +27,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 DATABASE_FILE = "history.json"
 
-groq_client = Groq(api_key=GROQ_API_KEY)
+groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 GROQ_MODEL = 'llama-3.3-70b-versatile' 
 
 # ==========================================
@@ -71,6 +71,8 @@ def generate_three_options(source, budget, vibe, excluded_list):
     fallback_destinations = ["Jaipur", "Munnar", "Rishikesh", "Udaipur", "Gokarna", "Darjeeling", "Andaman", "Leh Ladakh"]
     
     try:
+        if not groq_client:
+            raise RuntimeError("GROQ_API_KEY not configured")
         completion = groq_client.chat.completions.create(
             model=GROQ_MODEL, messages=[{"role": "user", "content": prompt}], temperature=0.7, max_tokens=1024
         )
@@ -159,6 +161,8 @@ def dashboard():
             pitch = "✨ Vibe: An incredible journey awaits. • 🏛️ Must-See: Explore the city. • 🍛 Local Bite: Street food."
             weather_desc = "Pleasant"
             try:
+                if not groq_client:
+                    raise RuntimeError("GROQ_API_KEY not configured")
                 completion = groq_client.chat.completions.create(model=GROQ_MODEL, messages=[{"role": "user", "content": prompt}], temperature=0.7)
                 clean_text = completion.choices[0].message.content.replace("*", "") 
                 whys = re.findall(r"WHY:\s*(.*?)(?=\nWEATHER:|$)", clean_text, re.DOTALL)
