@@ -322,5 +322,9 @@ def get_pitstops():
     except Exception as e:
         return jsonify({"success": False, "stops": []})
 
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template('404.html'), 404
+
 if __name__ == '__main__':
     app.run(port=8000, debug=True, use_reloader=False)
