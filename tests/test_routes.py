@@ -51,3 +51,10 @@ def test_validate_budget():
     assert validate_budget("invalid") == 10000
     assert validate_budget("500", min_val=1000) == 1000
     assert validate_budget("2000000", max_val=1000000) == 1000000
+
+
+def test_validate_budget_ignores_decimals_and_extra_text():
+    """Paise and trailing text must not be glued onto the rupee amount."""
+    assert validate_budget("15000.50") == 15000
+    assert validate_budget("₹15,000.00") == 15000
+    assert validate_budget("Rs. 20,000 for 2 people") == 20000

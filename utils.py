@@ -13,8 +13,9 @@ def validate_budget(budget_str: str, default: int = 10000, min_val: int = 1000, 
     """Parse and clamp budget string to realistic monetary bounds."""
     if not budget_str:
         return default
-    try:
-        numeric = int(re.sub(r"[^\d]", "", str(budget_str)))
-        return max(min_val, min(numeric, max_val))
-    except (ValueError, TypeError):
+    # Take the first number, so "15,000.50" is 15000 and not 1500050.
+    match = re.search(r"\d[\d,]*(?:\.\d+)?", str(budget_str))
+    if not match:
         return default
+    numeric = int(float(match.group().replace(",", "")))
+    return max(min_val, min(numeric, max_val))
