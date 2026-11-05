@@ -58,3 +58,22 @@ def test_validate_budget_ignores_decimals_and_extra_text():
     assert validate_budget("15000.50") == 15000
     assert validate_budget("₹15,000.00") == 15000
     assert validate_budget("Rs. 20,000 for 2 people") == 20000
+
+
+def test_regenerate_without_previous_recommendations(client, monkeypatch):
+    """Regenerating before any 'recommend' request used to raise KeyError (HTTP 500)."""
+    import main
+
+    seen = []
+
+    def fake_options(source, budget, vibe, excluded):
+        seen.append(list(excluded))
+        return [{"destination": "Goa", "cost": "₹10000", "pitch": "beach", "weather": "sunny", "image_url": ""}]
+
+    monkeypatch.setattr(main, "generate_three_options", fake_options)
+    with client.session_transaction() as sess:
+        sess["logged_in"] = True
+        sess["current_trip"] = {"source": "Hyderabad", "budget": "10000", "vibe": "beach"}
+    assert client.post("/regenerate").status_code == 200
+    assert client.post("/regenerate").status_code == 200
+    assert seen == [[], ["Goa"]]  # the second call excludes what the first one showed

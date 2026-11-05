@@ -196,7 +196,8 @@ def regenerate():
     form_data = session.get('current_trip', {})
     excluded = session.get('excluded_destinations', [])
     options = generate_three_options(form_data.get('source'), form_data.get('budget'), form_data.get('vibe'), excluded)
-    session['excluded_destinations'].extend([o['destination'] for o in options])
+    # The list may not exist yet (e.g. after a direct trip plan), so build it rather than extend it.
+    session['excluded_destinations'] = excluded + [o['destination'] for o in options]
     session.modified = True
     return render_template('recommendations.html', options=options, form_data=form_data, geoapify_key=GEOAPIFY_KEY)
 
