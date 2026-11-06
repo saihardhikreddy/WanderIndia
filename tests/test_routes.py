@@ -77,3 +77,18 @@ def test_regenerate_without_previous_recommendations(client, monkeypatch):
     assert client.post("/regenerate").status_code == 200
     assert client.post("/regenerate").status_code == 200
     assert seen == [[], ["Goa"]]  # the second call excludes what the first one showed
+
+
+def test_damaged_history_file_does_not_break_history(client, monkeypatch, tmp_path):
+    import main
+
+    db = tmp_path / "history.json"
+    db.write_text("[{\"user_email\": \"a@b.c\", ", encoding="utf-8")  # cut off mid-write
+    monkeypatch.setattr(main, "DATABASE_FILE", str(db))
+    assert main.load_trips() == []
+    client.post("/normal-login", data={"email": "a@b.c"})
+    assert client.get("/history").status_code == 200
+
+    main.save_trip({"user_email": "a@b.c", "destination": "Goa"})
+    assert main.get_user_trips("a@b.c") == [{"user_email": "a@b.c", "destination": "Goa"}]
+    assert not (tmp_path / "history.json.tmp").exists()

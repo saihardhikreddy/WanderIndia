@@ -34,16 +34,25 @@ GROQ_MODEL = 'llama-3.3-70b-versatile'
 # LOCAL DATABASE LOGIC
 # ==========================================
 def load_trips():
-    if os.path.exists(DATABASE_FILE):
-        with open(DATABASE_FILE, 'r') as f: 
-            return json.load(f)
-    return []
+    try:
+        with open(DATABASE_FILE, 'r', encoding='utf-8') as f:
+            trips = json.load(f)
+    except FileNotFoundError:
+        return []
+    except (OSError, ValueError):
+        # An empty or damaged file shouldn't take /history down with a 500.
+        app.logger.warning("Could not read %s, starting with no saved trips", DATABASE_FILE)
+        return []
+    return trips if isinstance(trips, list) else []
 
 def save_trip(trip_data):
     trips = load_trips()
     trips.append(trip_data)
-    with open(DATABASE_FILE, 'w') as f: 
+    # Write to a temp file and swap it in, so a crash mid-write can't leave half a file.
+    tmp = DATABASE_FILE + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
         json.dump(trips, f, indent=4)
+    os.replace(tmp, DATABASE_FILE)
 
 def get_user_trips(email):
     all_trips = load_trips()
