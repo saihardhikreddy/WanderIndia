@@ -92,3 +92,24 @@ def test_damaged_history_file_does_not_break_history(client, monkeypatch, tmp_pa
     main.save_trip({"user_email": "a@b.c", "destination": "Goa"})
     assert main.get_user_trips("a@b.c") == [{"user_email": "a@b.c", "destination": "Goa"}]
     assert not (tmp_path / "history.json.tmp").exists()
+
+
+def test_direct_plan_prompt_names_the_destination(client, monkeypatch):
+    import main
+
+    prompts = []
+
+    class FakeCompletions:
+        def create(self, model, messages, **kw):
+            prompts.append(messages[0]["content"])
+            raise RuntimeError("no network in tests")  # the route falls back to its default pitch
+
+    fake = type("G", (), {"chat": type("C", (), {"completions": FakeCompletions()})()})()
+    monkeypatch.setattr(main, "groq_client", fake)
+    monkeypatch.setattr(main.requests, "get", lambda *a, **k: (_ for _ in ()).throw(OSError()))
+    with client.session_transaction() as sess:
+        sess["logged_in"] = True
+    r = client.post("/dashboard", data={"action": "direct", "source": "Hyderabad", "destination": "Hampi",
+                                       "budget": "12000", "vibe": "Heritage"})
+    assert r.status_code == 200
+    assert "Hampi" in prompts[0] and "Hyderabad" in prompts[0] and "12000" in prompts[0]

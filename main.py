@@ -166,7 +166,10 @@ def dashboard():
         
         if action == 'direct':
             if not destination: destination = "Goa" 
-            prompt = f"Act as a professional Indian travel agent. FORMAT EXACTLY LIKE THIS:\nWHY:\n✨ Vibe: [1 sentence]\n🏛️ Must-See: [1 attraction]\n🍛 Local Bite: [1 dish]\nWEATHER: Climate: [Type] | Temp: [XX°C to YY°C]"
+            # The prompt must name the trip, or the model pitches a random place instead.
+            prompt = (f"Act as a professional Indian travel agent. Pitch a \"{vibe}\" trip to {destination}"
+                      f"{' from ' + source if source else ''} on a budget of ₹{budget}. "
+                      "FORMAT EXACTLY LIKE THIS:\nWHY:\n✨ Vibe: [1 sentence]\n🏛️ Must-See: [1 attraction]\n🍛 Local Bite: [1 dish]\nWEATHER: Climate: [Type] | Temp: [XX°C to YY°C]")
             pitch = "✨ Vibe: An incredible journey awaits. • 🏛️ Must-See: Explore the city. • 🍛 Local Bite: Street food."
             weather_desc = "Pleasant"
             try:
