@@ -113,3 +113,19 @@ def test_direct_plan_prompt_names_the_destination(client, monkeypatch):
                                        "budget": "12000", "vibe": "Heritage"})
     assert r.status_code == 200
     assert "Hampi" in prompts[0] and "Hyderabad" in prompts[0] and "12000" in prompts[0]
+
+
+def test_trip_routes_need_a_login(client, monkeypatch, tmp_path):
+    import main
+
+    db = tmp_path / "history.json"
+    monkeypatch.setattr(main, "DATABASE_FILE", str(db))
+    called = []
+    monkeypatch.setattr(main, "groq_client", type("G", (), {"chat": property(lambda s: called.append(1))})())
+    r = client.post("/generate_itinerary", data={"selected_destination": "Goa"})
+    assert r.status_code == 302 and r.headers["Location"].endswith("/")
+    assert not db.exists()  # nothing saved to history without an owner
+    assert client.post("/revisit_trip", data={"created_at": "x"}).status_code == 302
+    r = client.post("/api/get_pitstops", json={"source": "Pune", "destination": "Goa"})
+    assert r.status_code == 401 and r.get_json() == {"success": False, "stops": []}
+    assert not called

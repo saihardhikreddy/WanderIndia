@@ -215,6 +215,8 @@ def regenerate():
 
 @app.route('/generate_itinerary', methods=['POST'])
 def generate_itinerary():
+    # Without a login the trip would be saved to history with no owner.
+    if not session.get('logged_in'): return redirect(url_for('home'))
     destination = request.form.get('selected_destination', 'Destination')
     trip_data = session.get('current_trip', {})
     source = trip_data.get('source', 'Bangalore')
@@ -291,6 +293,7 @@ def history():
 
 @app.route('/revisit_trip', methods=['POST'])
 def revisit_trip():
+    if not session.get('logged_in'): return redirect(url_for('home'))
     form_data = request.form.to_dict()
     created_at = form_data.get('created_at')
     
@@ -314,6 +317,8 @@ def on_the_go():
 
 @app.route('/api/get_pitstops', methods=['POST'])
 def get_pitstops():
+    # Each call spends Groq quota, so only signed-in users may make it.
+    if not session.get('logged_in'): return jsonify({"success": False, "stops": []}), 401
     try:
         data = request.json
         source = data.get('source')
@@ -333,6 +338,7 @@ def get_pitstops():
         
         return jsonify({"success": True, "stops": places})
     except Exception as e:
+        print(f"❌ [Pitstops Error] {e}")
         return jsonify({"success": False, "stops": []})
 
 @app.errorhandler(404)
