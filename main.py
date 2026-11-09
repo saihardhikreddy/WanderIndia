@@ -17,7 +17,21 @@ app = Flask(__name__)
 # ==========================================
 # CONFIGURATION & API KEYS
 # ==========================================
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "wanderindia_super_secret_key_2024")
+# Values that are public (in this repo), so anyone could sign a session cookie with them
+# and log in as any email address. Never use them as the real key.
+PUBLIC_SECRET_KEYS = {"wanderindia_super_secret_key_2024", "wanderindia_super_secret_key_placeholder"}
+
+
+def pick_secret_key(configured):
+    """The configured key, or a random one (sessions then reset on restart) if it is missing or public."""
+    if configured and configured not in PUBLIC_SECRET_KEYS:
+        return configured
+    print("⚠️  FLASK_SECRET_KEY is not set (or is the example value): using a random key for this run. "
+          "Set your own in .env to keep people logged in across restarts.")
+    return os.urandom(32).hex()
+
+
+app.secret_key = pick_secret_key(os.getenv("FLASK_SECRET_KEY"))
 
 # 🎯 SECURE KEYS: Pulling from the hidden .env file
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID") 

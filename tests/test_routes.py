@@ -129,3 +129,28 @@ def test_trip_routes_need_a_login(client, monkeypatch, tmp_path):
     r = client.post("/api/get_pitstops", json={"source": "Pune", "destination": "Goa"})
     assert r.status_code == 401 and r.get_json() == {"success": False, "stops": []}
     assert not called
+
+
+def test_public_secret_keys_are_never_used():
+    import main
+
+    assert main.pick_secret_key("my-own-long-key") == "my-own-long-key"
+    for public in [None, "", *main.PUBLIC_SECRET_KEYS]:
+        key = main.pick_secret_key(public)
+        assert key not in main.PUBLIC_SECRET_KEYS and len(key) == 64
+    assert main.app.secret_key not in main.PUBLIC_SECRET_KEYS
+
+
+def test_session_signed_with_the_old_default_key_is_rejected():
+    # Before, anyone could sign {"logged_in": true, "user_email": <victim>} with the key in the repo.
+    from flask.sessions import SecureCookieSessionInterface
+    import main
+
+    forger = main.Flask("forger")
+    forger.secret_key = "wanderindia_super_secret_key_2024"
+    cookie = SecureCookieSessionInterface().get_signing_serializer(forger).dumps(
+        {"logged_in": True, "user_email": "victim@example.com"})
+    with main.app.test_client() as c:
+        c.set_cookie("session", cookie)
+        r = c.get("/history")
+        assert r.status_code == 302  # not logged in
