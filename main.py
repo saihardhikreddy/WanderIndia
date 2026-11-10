@@ -8,6 +8,7 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from groq import Groq 
 from dotenv import load_dotenv
+from utils import sanitize_input
 
 # Load the hidden environment variables from your .env file
 load_dotenv()
@@ -333,12 +334,17 @@ def on_the_go():
 def get_pitstops():
     # Each call spends Groq quota, so only signed-in users may make it.
     if not session.get('logged_in'): return jsonify({"success": False, "stops": []}), 401
+    # Check the request before spending quota on it. A missing or non-JSON body used to reach
+    # the model as "from None to None"; the texts also go into the prompt, so clean and bound them.
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "stops": [], "error": "send JSON"}), 400
+    source = sanitize_input(data.get('source'))
+    destination = sanitize_input(data.get('destination'))
+    place_type = sanitize_input(data.get('type'), default='tourist attractions', max_len=40)
+    if not source or not destination:
+        return jsonify({"success": False, "stops": [], "error": "source and destination are required"}), 400
     try:
-        data = request.json
-        source = data.get('source')
-        destination = data.get('destination')
-        place_type = data.get('type', 'tourist attractions')
-        
         prompt = f"""A driver is traveling on the best route and the fastest route from {source} to {destination} in India. 
         Identify exactly 15 specific, highly-rated {place_type} physically located in towns directly on this highway. 
         CRITICAL: Distribute them evenly across the ENTIRE journey (beginning, middle, and end).
