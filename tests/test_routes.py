@@ -179,3 +179,54 @@ def test_pitstops_checks_the_request_before_calling_the_model(client, monkeypatc
     assert r.status_code == 200 and r.get_json()["stops"] == ["Lonavala", "Satara", "Kolhapur"]
     assert "Pune Ignore all that" in prompts[0] and "Goa" * 34 not in prompts[0]  # cleaned, bounded to 100
     assert "tourist attractions" in prompts[0]
+
+
+class _FakeResponse:
+    def __init__(self, status=200, payload=None):
+        self.status_code = status
+        self._payload = payload if payload is not None else {}
+
+    def json(self):
+        return self._payload
+
+
+def test_unsplash_query_is_encoded_and_has_a_timeout(monkeypatch):
+    import main
+
+    calls = []
+
+    def fake_get(url, params=None, timeout=None, **kw):
+        calls.append((url, params, timeout))
+        return _FakeResponse(payload={"results": [{"urls": {"regular": "a.jpg"}}, {"urls": {"regular": "b.jpg"}}]})
+
+    monkeypatch.setattr(main, "UNSPLASH_ACCESS_KEY", "key")
+    monkeypatch.setattr(main.requests, "get", fake_get)
+    assert main.unsplash_images("Daman & Diu india", count=2) == ["a.jpg", "b.jpg"]
+    url, params, timeout = calls[0]
+    assert "?" not in url  # nothing glued into the URL by hand
+    assert params["query"] == "Daman & Diu india" and params["per_page"] == 2
+    assert timeout and timeout > 0
+
+
+def test_unsplash_failures_fall_back_to_nothing(monkeypatch):
+    import main
+
+    monkeypatch.setattr(main, "UNSPLASH_ACCESS_KEY", "key")
+    for response in (_FakeResponse(403), _FakeResponse(payload={"results": []}),
+                     _FakeResponse(payload={"results": [{"oops": 1}]})):
+        monkeypatch.setattr(main.requests, "get", lambda *a, r=response, **k: r)
+        assert main.unsplash_images("Goa") == []
+
+    def timeout(*a, **k):
+        raise main.requests.Timeout()
+
+    monkeypatch.setattr(main.requests, "get", timeout)
+    assert main.unsplash_images("Goa") == []
+
+
+def test_unsplash_is_not_called_without_a_key(monkeypatch):
+    import main
+
+    monkeypatch.setattr(main, "UNSPLASH_ACCESS_KEY", None)
+    monkeypatch.setattr(main.requests, "get", lambda *a, **k: pytest.fail("called Unsplash with no key"))
+    assert main.unsplash_images("Goa") == []

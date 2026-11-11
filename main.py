@@ -74,6 +74,36 @@ def get_user_trips(email):
     return [t for t in all_trips if t.get('user_email') == email]
 
 # ==========================================
+# PHOTOS
+# ==========================================
+DEFAULT_IMAGES = [
+    "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?q=80&w=2000",
+    "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?q=80&w=2000",
+]
+UNSPLASH_TIMEOUT = 6  # seconds; a stalled photo search must not hang the page
+
+
+def unsplash_images(query, count=1):
+    """Up to `count` landscape photo URLs for the query, or [] if none could be found.
+
+    The query goes in as a parameter, so a place like "Daman & Diu" is sent whole
+    instead of cutting the URL short, and no request is made without an access key."""
+    if not UNSPLASH_ACCESS_KEY:
+        return []
+    try:
+        res = requests.get(
+            "https://api.unsplash.com/search/photos",
+            params={"query": query, "client_id": UNSPLASH_ACCESS_KEY,
+                    "orientation": "landscape", "per_page": count},
+            timeout=UNSPLASH_TIMEOUT,
+        )
+        if res.status_code != 200:
+            return []
+        return [r["urls"]["regular"] for r in res.json().get("results", [])[:count]]
+    except (OSError, ValueError, KeyError, TypeError):  # requests errors are OSErrors
+        return []
+
+# ==========================================
 # AI GENERATION HELPER
 # ==========================================
 def generate_three_options(source, budget, vibe, excluded_list):
@@ -120,13 +150,9 @@ def generate_three_options(source, budget, vibe, excluded_list):
             if len(options) >= 3: break
                 
     for opt in options:
-        opt['image_url'] = "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?q=80&w=2000"
-        try:
-            url = f"https://api.unsplash.com/search/photos?query={opt['destination']}+india+landscape&client_id={UNSPLASH_ACCESS_KEY}&orientation=landscape&per_page=1"
-            u_res = requests.get(url)
-            if u_res.status_code == 200 and u_res.json()['results']: opt['image_url'] = u_res.json()['results'][0]['urls']['regular']
-        except Exception: pass
-            
+        found = unsplash_images(f"{opt['destination']} india landscape")
+        opt['image_url'] = found[0] if found else DEFAULT_IMAGES[0]
+
     return options
 
 # ==========================================
@@ -199,11 +225,8 @@ def dashboard():
                 if weathers: weather_desc = weathers[0].strip()
             except Exception: pass
             
-            card_image = "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?q=80&w=2000"
-            try:
-                u_res = requests.get(f"https://api.unsplash.com/search/photos?query={destination}+india&client_id={UNSPLASH_ACCESS_KEY}&orientation=landscape&per_page=1")
-                if u_res.status_code == 200 and u_res.json()['results']: card_image = u_res.json()['results'][0]['urls']['regular']
-            except Exception: pass
+            found = unsplash_images(f"{destination} india")
+            card_image = found[0] if found else DEFAULT_IMAGES[0]
 
             options = [{"destination": destination, "cost": f"₹{budget}", "pitch": pitch, "weather": weather_desc, "image_url": card_image}]
             return render_template('recommendations.html', options=options, form_data=form_data, geoapify_key=GEOAPIFY_KEY)
@@ -274,13 +297,8 @@ def generate_itinerary():
         itinerary_html = completion.choices[0].message.content.replace("```html\n", "").replace("```html", "").replace("```", "")
     except Exception as e: print(f"❌ [Groq Error] {e}")
 
-    images = ["https://images.unsplash.com/photo-1524492412937-b28074a5d7da?q=80&w=2000", "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?q=80&w=2000"]
-    try:
-        u_res = requests.get(f"https://api.unsplash.com/search/photos?query={destination}+india+landscape&client_id={UNSPLASH_ACCESS_KEY}&orientation=landscape&per_page=2")
-        if u_res.status_code == 200 and len(u_res.json().get('results', [])) >= 2:
-            results = u_res.json()['results']
-            images = [results[0]['urls']['regular'], results[1]['urls']['regular']]
-    except Exception: pass
+    found = unsplash_images(f"{destination} india landscape", count=2)
+    images = found if len(found) == 2 else list(DEFAULT_IMAGES)
 
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
