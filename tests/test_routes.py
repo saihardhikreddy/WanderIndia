@@ -230,3 +230,24 @@ def test_unsplash_is_not_called_without_a_key(monkeypatch):
     monkeypatch.setattr(main, "UNSPLASH_ACCESS_KEY", None)
     monkeypatch.setattr(main.requests, "get", lambda *a, **k: pytest.fail("called Unsplash with no key"))
     assert main.unsplash_images("Goa") == []
+
+
+def test_place_list_from_a_comma_separated_reply():
+    from main import parse_place_list
+
+    assert parse_place_list('"Lonavala", Khandala, Lion\'s Safari Park, Lonavala.') == [
+        "Lonavala", "Khandala", "Lion's Safari Park"]
+
+
+def test_place_list_from_numbered_or_bulleted_lines():
+    from main import parse_place_list
+
+    reply = "1. Lonavala\n2) Khandala\n- Karla Caves\n• Imagica\n\n"
+    assert parse_place_list(reply) == ["Lonavala", "Khandala", "Karla Caves", "Imagica"]
+
+
+def test_place_list_is_capped_and_handles_nothing():
+    from main import parse_place_list
+
+    assert len(parse_place_list(", ".join(f"Town {i}" for i in range(30)))) == 15
+    assert parse_place_list("") == [] and parse_place_list(None) == []

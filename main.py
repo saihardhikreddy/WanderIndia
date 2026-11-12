@@ -348,6 +348,27 @@ def on_the_go():
                            destination=trip.get('destination', 'Goa'), 
                            geoapify_key=GEOAPIFY_KEY)
 
+MAX_PITSTOPS = 15
+
+
+def parse_place_list(text, limit=MAX_PITSTOPS):
+    """Place names from the model's reply, in order, without duplicates.
+
+    The prompt asks for a comma-separated list, but models often answer with one numbered or
+    bulleted name per line ("1. Lonavala"), which used to come back as a single long "stop"
+    with the numbers in it. Apostrophes were also stripped out of names ("Lion's" -> "Lions").
+    """
+    names, seen = [], set()
+    for part in re.split(r"[,\n;]+", text or ""):
+        name = re.sub(r"^\s*(?:\d+[.)]|[-*•])\s*", "", part)   # "1." / "2)" / "-" / "•"
+        name = name.strip().strip('"“”`').strip()
+        name = re.sub(r"^'|'$", "", name).strip().rstrip(".")
+        if name and name.lower() not in seen:
+            seen.add(name.lower())
+            names.append(name)
+    return names[:limit]
+
+
 @app.route('/api/get_pitstops', methods=['POST'])
 def get_pitstops():
     # Each call spends Groq quota, so only signed-in users may make it.
@@ -372,7 +393,7 @@ def get_pitstops():
         Return ONLY a comma-separated list of the 15 names, with no extra text."""
         
         completion = groq_client.chat.completions.create(model=GROQ_MODEL, messages=[{"role": "user", "content": prompt}], temperature=0.1)
-        places = [p.strip() for p in completion.choices[0].message.content.replace('"', '').replace("'", "").split(',') if p.strip()]
+        places = parse_place_list(completion.choices[0].message.content)
         
         return jsonify({"success": True, "stops": places})
     except Exception as e:
