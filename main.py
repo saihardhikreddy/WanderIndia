@@ -251,6 +251,29 @@ def regenerate():
     session.modified = True
     return render_template('recommendations.html', options=options, form_data=form_data, geoapify_key=GEOAPIFY_KEY)
 
+MAX_TRIP_DAYS = 14
+
+
+def trip_days(trip):
+    """Days in the trip, counting both ends: from the dashboard's start and end dates, else a
+    stored 'duration', else 3. Kept between 1 and MAX_TRIP_DAYS, so a reversed or far-apart
+    pair of dates can't ask the model for a 0-day or 300-day plan.
+
+    The dashboard never sends a 'duration', so every itinerary used to be 3 days long
+    whatever dates were picked."""
+    days = None
+    try:
+        start = datetime.strptime(trip.get('start_date', ''), "%Y-%m-%d")
+        end = datetime.strptime(trip.get('end_date', ''), "%Y-%m-%d")
+        days = (end - start).days + 1
+    except (TypeError, ValueError):
+        try:
+            days = int(trip.get('duration', 3))
+        except (TypeError, ValueError):
+            days = 3
+    return min(max(days, 1), MAX_TRIP_DAYS)
+
+
 @app.route('/generate_itinerary', methods=['POST'])
 def generate_itinerary():
     # Without a login the trip would be saved to history with no owner.
@@ -262,11 +285,7 @@ def generate_itinerary():
     vibe = trip_data.get('vibe', 'Surprise Me!')
     cuisine = trip_data.get('cuisine', 'Local cuisine')
     
-    # 🎯 DYNAMIC DAYS FIX: Grabs the duration from your form data. Defaults to 3 if missing.
-    try:
-        num_days = int(trip_data.get('duration', 3))
-    except ValueError:
-        num_days = 3 
+    num_days = trip_days(trip_data)
     
     prompt = f"""Act as an expert local tour guide. Create a CLEAR, SCANNABLE, POINT-WISE {num_days}-day travel itinerary for {destination} from {source}.
     Vibe: {vibe}, Cuisine: {cuisine}. Budget: ₹{budget}.

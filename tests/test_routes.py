@@ -251,3 +251,39 @@ def test_place_list_is_capped_and_handles_nothing():
 
     assert len(parse_place_list(", ".join(f"Town {i}" for i in range(30)))) == 15
     assert parse_place_list("") == [] and parse_place_list(None) == []
+
+
+def test_trip_length_comes_from_the_chosen_dates():
+    from main import trip_days
+
+    assert trip_days({"start_date": "2026-12-20", "end_date": "2026-12-24"}) == 5
+    assert trip_days({"start_date": "2026-12-20", "end_date": "2026-12-20"}) == 1
+    assert trip_days({"start_date": "2026-12-24", "end_date": "2026-12-20"}) == 1   # reversed
+    assert trip_days({"start_date": "2026-01-01", "end_date": "2026-12-31"}) == 14  # capped
+    assert trip_days({"duration": 4}) == 4                                          # revisited trip
+    assert trip_days({"start_date": "", "duration": "x"}) == 3
+    assert trip_days({}) == 3
+
+
+def test_itinerary_prompt_uses_the_trip_dates(client, monkeypatch, tmp_path):
+    import main
+
+    prompts = []
+
+    class FakeCompletions:
+        def create(self, model, messages, **kw):
+            prompts.append(messages[0]["content"])
+            raise RuntimeError("no network in tests")
+
+    monkeypatch.setattr(main, "groq_client", type("G", (), {"chat": type("C", (), {"completions": FakeCompletions()})()})())
+    monkeypatch.setattr(main, "unsplash_images", lambda *a, **k: [])
+    monkeypatch.setattr(main, "DATABASE_FILE", str(tmp_path / "history.json"))
+    with client.session_transaction() as sess:
+        sess["logged_in"] = True
+        sess["user_email"] = "a@b.c"
+        sess["current_trip"] = {"source": "Pune", "start_date": "2026-12-20", "end_date": "2026-12-24"}
+    r = client.post("/generate_itinerary", data={"selected_destination": "Goa"})
+    assert r.status_code == 200
+    assert "5-day travel itinerary for Goa" in prompts[0]
+    with client.session_transaction() as sess:
+        assert sess["current_trip"]["duration"] == 5
