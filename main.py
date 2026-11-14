@@ -106,6 +106,12 @@ def unsplash_images(query, count=1):
 # ==========================================
 # AI GENERATION HELPER
 # ==========================================
+def place_key(name):
+    """A destination name reduced for comparison: case, spacing and a trailing state or
+    country ("Jaipur, Rajasthan", "Goa, India") don't make it a different place."""
+    return " ".join(str(name or "").split(",")[0].split()).lower()
+
+
 def generate_three_options(source, budget, vibe, excluded_list):
     excluded_text = ", ".join(excluded_list) if excluded_list else "None"
     
@@ -136,7 +142,17 @@ def generate_three_options(source, budget, vibe, excluded_list):
         whys = re.findall(r"WHY:\s*(.*?)(?=\nWEATHER:|\nDESTINATION:|$)", clean_text, re.DOTALL)
         weathers = re.findall(r"WEATHER:\s*(.*?)(?=\nDESTINATION:|$)", clean_text, re.DOTALL)
         
-        for i in range(min(len(destinations), 3)):
+        # The model doesn't always follow "DO NOT suggest": on "Show me others" it may offer a
+        # place it has already shown, or the same place twice. Those are dropped here, and the
+        # fallback list below fills any gap.
+        seen = {place_key(d) for d in excluded_list}
+        for i in range(len(destinations)):
+            if len(options) >= 3:
+                break
+            key = place_key(destinations[i])
+            if not key or key in seen:
+                continue
+            seen.add(key)
             # 🎯 FIX: Changed \n to a clean bullet point separator instead of <br> to prevent raw HTML leaking!
             pitch_text = whys[i].strip().replace('\n', ' • ') if i < len(whys) else "✨ Vibe: An incredible journey awaits. • 🏛️ Must-See: Explore the city. • 🍛 Local Bite: Street food."
             weather_text = weathers[i].strip() if i < len(weathers) else "Pleasant"
@@ -145,7 +161,8 @@ def generate_three_options(source, budget, vibe, excluded_list):
 
     if len(options) < 3:
         for dest in fallback_destinations:
-            if dest not in excluded_list and not any(d.get('destination') == dest for d in options):
+            taken = {place_key(d) for d in excluded_list} | {place_key(d.get('destination')) for d in options}
+            if place_key(dest) not in taken:
                 options.append({"destination": dest, "pitch": f"✨ Vibe: Experience the magic of {dest}. • 🏛️ Must-See: Explore the landscapes. • 🍛 Local Bite: Try regional delicacies.", "cost": f"₹{budget}", "weather": "Sunny"})
             if len(options) >= 3: break
                 

@@ -287,3 +287,39 @@ def test_itinerary_prompt_uses_the_trip_dates(client, monkeypatch, tmp_path):
     assert "5-day travel itinerary for Goa" in prompts[0]
     with client.session_transaction() as sess:
         assert sess["current_trip"]["duration"] == 5
+
+
+def _fake_groq(reply):
+    class FakeCompletions:
+        def create(self, model, messages, **kw):
+            msg = type("M", (), {"content": reply})()
+            return type("R", (), {"choices": [type("Ch", (), {"message": msg})()]})()
+
+    return type("G", (), {"chat": type("C", (), {"completions": FakeCompletions()})()})()
+
+
+def _block(city):
+    return (f"DESTINATION: {city}\nWHY:\n✨ Vibe: {city} vibe\n🏛️ Must-See: fort\n🍛 Local Bite: dosa\n"
+            "WEATHER: Climate: Dry | Temp: 20°C to 30°C\n")
+
+
+def test_recommendations_skip_places_already_shown_and_repeats(monkeypatch):
+    """"Show me others" used to show a place again whenever the model ignored the exclusion list."""
+    import main
+
+    reply = "".join(_block(c) for c in ["Jaipur, Rajasthan", "Udaipur", "udaipur", "Hampi", "Goa"])
+    monkeypatch.setattr(main, "groq_client", _fake_groq(reply))
+    monkeypatch.setattr(main, "unsplash_images", lambda *a, **k: [])
+    options = main.generate_three_options("Hyderabad", "10000", "Heritage", ["Jaipur", "Munnar"])
+    assert [o["destination"] for o in options] == ["Udaipur", "Hampi", "Goa"]
+    assert options[1]["pitch"].startswith("✨ Vibe: Hampi vibe")  # pitch stays with its place
+
+
+def test_fallback_places_respect_the_exclusion_list_whatever_the_case(monkeypatch):
+    import main
+
+    monkeypatch.setattr(main, "groq_client", None)
+    monkeypatch.setattr(main, "unsplash_images", lambda *a, **k: [])
+    options = main.generate_three_options("Hyderabad", "10000", "Hills", ["jaipur", "MUNNAR "])
+    assert [o["destination"] for o in options] == ["Rishikesh", "Udaipur", "Gokarna"]
+    assert main.place_key("  Leh   Ladakh , India") == "leh ladakh"
