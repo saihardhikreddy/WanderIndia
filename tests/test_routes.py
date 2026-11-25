@@ -60,6 +60,16 @@ def test_validate_budget_ignores_decimals_and_extra_text():
     assert validate_budget("Rs. 20,000 for 2 people") == 20000
 
 
+def test_validate_budget_reads_exponent_form():
+    """<input type="number"> accepts "1e5"; it used to come back as the 1000 minimum."""
+    assert validate_budget("1e5") == 100000
+    assert validate_budget("2.5e4") == 25000
+    assert validate_budget("1E5") == 100000
+    # A huge exponent is clamped to the maximum instead of crashing with OverflowError.
+    assert validate_budget("1e999") == 1000000
+    assert validate_budget("1e-3") == 1000
+
+
 def test_regenerate_without_previous_recommendations(client, monkeypatch):
     """Regenerating before any 'recommend' request used to raise KeyError (HTTP 500)."""
     import main
